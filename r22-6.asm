@@ -39,10 +39,13 @@ OPTION_2		db	'2) start system',0
 OPTION_3		db	'3) show clock',0
 OPTION_4		db	'4) set clock',0
 
-ADDRESS_OPT		dw	offset OPTION_1 - boot + 7e00h
-				dw	offset OPTION_2 - boot + 7e00h
-				dw	offset OPTION_3 - boot + 7e00h
-				dw	offset OPTION_4 - boot + 7e00h
+ADDRESS_OPT		dw	offset OPTION_1 - offset boot + 7e00h
+				dw	offset OPTION_2 - offset boot + 7e00h
+				dw	offset OPTION_3 - offset boot + 7e00h
+				dw	offset OPTION_4 - offset boot + 7e00h
+				
+TIME_CMOS		db	9,8,7,4,2,0
+TIME_STYLE		db	'YY/MM/DD HH:MM:SS',0
 
 ;******************************************************	
 ;******************************************************	
@@ -89,6 +92,7 @@ isChooseTwo:
 isChooseThr:
 				mov di,160*3
 				mov byte ptr es:[di],'3'
+				call show_clock
 				
 				jmp choose_opt
 ;===================================
@@ -97,6 +101,51 @@ isChooseFour:
 				mov byte ptr es:[di],'4'
 				
 				jmp choose_opt
+				
+;===================================
+show_clock:		
+				call show_style
+				
+				mov bx,offset TIME_CMOS - offset boot + 7e00h
+				
+showTime:		mov si,bx
+				mov di,160*20
+				mov cx,6
+				
+showDate:		mov al,ds:[si]
+				
+				out 70h,al
+				in al,71h
+				
+				mov ah,al
+				shr ah,1
+				shr ah,1
+				shr ah,1
+				shr ah,1
+				and al,00001111b
+				
+				add ah,30h
+				add al,30h
+				
+				mov es:[di],ah
+				mov es:[di+2],al
+				
+				add di,6
+				inc si
+				
+				loop showDate
+				
+				jmp showTime
+				
+				ret
+				
+;===================================
+show_style:		
+				mov si,offset TIME_STYLE - offset boot + 7e00h
+				mov di,160*20
+				
+				call show_str
+				ret
 ;===================================
 clear_buff:		mov ah,1
 				int 16h
@@ -143,6 +192,7 @@ showStrRet:
 				pop dx
 				ret
 ;===================================
+;清理屏幕上的内容
 clear_screen:	
 				mov bx,0
 				mov dx,0700h
