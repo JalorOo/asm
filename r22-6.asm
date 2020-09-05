@@ -16,6 +16,7 @@ start:			mov ax,stack
 				mov sp,128
 		
 				call cpy_boot
+				call sav_old_int9
 				
 				;设置新的cs:ip
 				mov bx,0
@@ -94,7 +95,7 @@ isChooseThr:
 				mov byte ptr es:[di],'3'
 				call show_clock
 				
-				jmp choose_opt
+				jmp boot_start
 ;===================================
 isChooseFour:
 				mov di,160*3
@@ -102,9 +103,12 @@ isChooseFour:
 				
 				jmp choose_opt
 				
+
 ;===================================
+;显示时间
 show_clock:		
 				call show_style
+				call set_new_int9
 				
 				mov bx,offset TIME_CMOS - offset boot + 7e00h
 				
@@ -138,7 +142,94 @@ showDate:		mov al,ds:[si]
 				jmp showTime
 				
 				ret
+;==================================		
+showTimeRet:	
+				call set_old_int9
+				ret
+;===================================
+;设置回原来的int9
+set_old_int9:	
+				push bx
+				push es
+				mov bx,0
+				mov es,bx
 				
+				cli
+				push es:[200h]
+				pop es:[9*4]
+				push es:[202h]
+				pop es:[9*4+2]
+				sti
+				
+				pop es
+				pop bx
+				ret
+;===================================
+;设置新的int9
+set_new_int9:		
+				push bx
+				push es
+				
+				mov bx,0
+				mov es,bx
+				
+				cli
+				mov word ptr es:[9*4],offset new_int9 - offset boot + 7e00h
+				mov word ptr es:[9*4+2],0
+				sti
+				
+				pop es
+				pop bx
+				ret
+;=====================================
+;新的int9的内容			
+new_int9:		
+				push ax
+				
+				call clear_buff
+				
+				in al,60h
+				pushf
+				call dword ptr cs:[200h]
+				
+				cmp al,01h
+				je isEsc
+				
+				cmp al,3bh
+				jne int9Ret
+				call change_time_color
+				
+int9Ret:		pop ax
+				iret
+;===================================			
+isEsc:			
+				pop ax
+				add sp,4
+				popf
+				jmp showTimeRet
+;===================================
+;改变时间的颜色			
+change_time_color:
+
+				push bx
+				push cx
+				push es
+				
+				mov bx,0b800h
+				mov es,bx
+				mov bx,160*20+1
+				
+				mov cx,17
+				
+changeTimeColor:
+				inc byte ptr es:[bx]
+				add bx,2
+				loop changeTimeColor
+				
+				pop es
+				pop cx
+				pop bx
+				ret							
 ;===================================
 show_style:		
 				mov si,offset TIME_STYLE - offset boot + 7e00h
@@ -216,8 +307,16 @@ init_reg:
 boot_end:		nop
 
 
-
-
+;=============================
+sav_old_int9:	mov bx,0
+				mov es,bx
+				
+				push es:[9*4]
+				pop es:[200h]
+				push es:[9*4+2]
+				pop es:[202h]
+				
+				ret
 ;=============================
 ;复制启动项到0:7e00h
 cpy_boot:	
